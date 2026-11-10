@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  matsuoka-fit-tracker
+  Diet & Training Tracker Serverless Backend (HTTP API + Cognito JWT Authorizer + Lambda + DynamoDB)
+
+Globals:
+  Function:
+    Timeout: 10
+    MemorySize: 256
+    Runtime: python3.12
+    Architectures:
+      - arm64
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref FitnessRecordsTable
+        ALLOWED_ORIGIN: !Ref AllowedOrigin
+
+Parameters:
+  AllowedOrigin:
+    Type: String
+    Default: "*"
+    Description: CORS Allowed Origin (e.g. https://matsuoka-fit-tracker.pages.dev or *)
+  ExistingCognitoRegion:
+    Type: String
+    Default: "ap-northeast-1"
+    Description: Region of the existing Cognito User Pool
+  ExistingUserPoolId:
+    Type: String
+    Default: "ap-northeast-1_xxxxxxxxx"
+    Description: Existing Cognito User Pool ID created in AWS Console
+  ExistingUserPoolClientId:
+    Type: String
+    Default: "xxxxxxxxxxxxxxxxxxxxxxxxxx"
+    Description: Existing Cognito User Pool App Client ID
+
+Resources:
+  # ===========================================================================
+  # 1. Hot DB: Amazon DynamoDB
+  # ===========================================================================
+  FitnessRecordsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: FitnessRecords
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: recordKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: recordKey
+          KeyType: RANGE
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+
+  # ===========================================================================
+  # 2. API Gateway (HTTP API) with Existing Cognito JWT Authorizer & Full CORS
+  # ===========================================================================
+  FitTrackerHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref AllowedOrigin
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+          - X-Amz-Date
+          - X-Api-Key
+          - X-Amz-Security-Token
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        MaxAge: 86400
+      Auth:
+        DefaultAuthorizer: CognitoJwtAuthorizer
+        Authorizers:
+          CognitoJwtAuthorizer:
+            IdentitySource: "$request.header.Authorization"
+            JwtConfiguration:
+              issuer: !Sub "https://cognito-idp.${ExistingCognitoRegion}.amazonaws.com/${ExistingUserPoolId}"
+              audience:
+                - !Ref ExistingUserPoolClientId
+
+  # ===========================================================================
+  # 3. Compute: AWS Lambda Function
+  # ===========================================================================
+  FitTrackerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: app.lambda_handler
+      Description: Diet & Training Tracker API Handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref FitnessRecordsTable
+      Events:
+        GetRecords:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FitTrackerHttpApi
+            Path: /records
+            Method: GET
+        PostDietRecord:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FitTrackerHttpApi
+            Path: /records/diet
+            Method: POST
+        PostWorkoutRecord:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FitTrackerHttpApi
+            Path: /records/workout
+            Method: POST
+        PostBodyRecord:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FitTrackerHttpApi
+            Path: /records/body
+            Method: POST
+
+Outputs:
+  ApiEndpoint:
+    Description: "HTTP API Gateway Endpoint URL (Set this to VITE_API_BASE_URL)"
+    Value: !Sub "https://${FitTrackerHttpApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  DynamoDBTableName:
+    Description: "DynamoDB Hot Table Name"
+    Value: !Ref FitnessRecordsTable

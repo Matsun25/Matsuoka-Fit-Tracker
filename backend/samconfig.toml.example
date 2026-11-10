@@ -1,0 +1,11 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "matsuoka-fit-tracker"
+resolve_s3 = true
+s3_prefix = "matsuoka-fit-tracker"
+region = "ap-northeast-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "AllowedOrigin=\"*\" ExistingCognitoRegion=\"ap-northeast-1\" ExistingUserPoolId=\"ap-northeast-1_xxxxxxxxx\" ExistingUserPoolClientId=\"xxxxxxxxxxxxxxxxxxxxxxxxxx\""
+image_repositories = []

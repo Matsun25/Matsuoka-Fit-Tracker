@@ -1,0 +1,190 @@
+{
+  "name": "FitTracker Hot-to-Cold DB Sync (DynamoDB to PostgreSQL)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every 6 Hours Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableName": "FitnessRecords",
+        "returnAll": true,
+        "options": {
+          "filterExpression": "syncedToCold = :synced",
+          "expressionAttributeValues": {
+            "values": [
+              {
+                "name": ":synced",
+                "type": "B",
+                "value": "false"
+              }
+            ]
+          }
+        }
+      },
+      "id": "dynamodb-scan-unsynced",
+      "name": "Scan Unsynced DynamoDB Records",
+      "type": "n8n-nodes-base.awsDynamoDb",
+      "typeVersion": 1,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO users (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING;",
+        "additionalFields": {
+          "queryParams": "={{ $json.userId }}"
+        }
+      },
+      "id": "postgres-upsert-user",
+      "name": "Ensure User Exists in PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.recordType }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "DIET",
+              "output": 0
+            },
+            {
+              "value2": "WORKOUT",
+              "output": 1
+            },
+            {
+              "value2": "BODY",
+              "output": 2
+            }
+          ]
+        }
+      },
+      "id": "switch-record-type",
+      "name": "Route by RecordType",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO diet_records (user_id, recorded_at, menu_name, calories, protein, fat, carbs, dynamodb_sk) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (dynamodb_sk) DO NOTHING;",
+        "additionalFields": {
+          "queryParams": "={{ $json.userId }},={{ $json.recordedAt }},={{ $json.menuName }},={{ $json.calories }},={{ $json.protein }},={{ $json.fat }},={{ $json.carbs }},={{ $json.recordKey }}"
+        }
+      },
+      "id": "postgres-insert-diet",
+      "name": "Insert Diet Record",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1120, 140]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO workout_records (user_id, recorded_at, workout_name, weight, reps, sets, dynamodb_sk) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (dynamodb_sk) DO NOTHING;",
+        "additionalFields": {
+          "queryParams": "={{ $json.userId }},={{ $json.recordedAt }},={{ $json.workoutName }},={{ $json.weight }},={{ $json.reps }},={{ $json.sets }},={{ $json.recordKey }}"
+        }
+      },
+      "id": "postgres-insert-workout",
+      "name": "Insert Workout Record",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO body_records (user_id, recorded_at, body_weight, body_fat_percentage, dynamodb_sk) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (dynamodb_sk) DO NOTHING;",
+        "additionalFields": {
+          "queryParams": "={{ $json.userId }},={{ $json.recordedAt }},={{ $json.bodyWeight }},={{ $json.bodyFatPercentage ?? null }},={{ $json.recordKey }}"
+        }
+      },
+      "id": "postgres-insert-body",
+      "name": "Insert Body Record",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1120, 460]
+    }
+  ],
+  "connections": {
+    "Every 6 Hours Trigger": {
+      "main": [
+        [
+          {
+            "node": "Scan Unsynced DynamoDB Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scan Unsynced DynamoDB Records": {
+      "main": [
+        [
+          {
+            "node": "Ensure User Exists in PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ensure User Exists in PostgreSQL": {
+      "main": [
+        [
+          {
+            "node": "Route by RecordType",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by RecordType": {
+      "main": [
+        [
+          {
+            "node": "Insert Diet Record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Insert Workout Record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Insert Body Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
+

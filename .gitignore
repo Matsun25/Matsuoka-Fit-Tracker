@@ -1,0 +1,79 @@
+# ==========================================
+# Matsuoka Fit Tracker - .gitignore
+# ==========================================
+
+# 1. Environment & Secret files
+.env
+.env.*
+!.env.example
+*.local
+*.pem
+*.key
+*.cert
+*.crt
+
+# SAM local deployment parameters (contains active AWS resources IDs)
+backend/samconfig.toml
+
+# 2. Node.js & Frontend dependencies / build outputs
+node_modules/
+dist/
+dist-ssr/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# 3. Python / Backend build outputs & caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+eggs/
+.eggs/
+parts/
+bin/
+var/
+sdist/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# AWS SAM build directory
+.aws-sam/
+
+# Unit test & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# 4. OS temporary files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# 5. IDE & Editor configurations
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# 6. Local Agent & Workspace metadata
+.agent/
+GEMINI.md
+.system_generated/
